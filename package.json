@@ -90,7 +90,8 @@
     "uuid": "^11.1.0",
     "zustand": "^5.0.9",
     "expo-build-properties": "~1.0.10",
-    "expo-updates": "~0.28.18"
+    "expo-updates": "~0.28.18",
+    "expo-apple-authentication": "~8.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
