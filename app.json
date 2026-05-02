@@ -1,0 +1,77 @@
+{
+  "expo": {
+    "name": "Breath",
+    "slug": "breath",
+    "scheme": "breath",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "bundleIdentifier": "dev.apexailabs.breath",
+      "appleTeamId": "YZP4MFJ47H",
+      "icon": "./assets/icon.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses your camera to record workout videos and check your form.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "1",
+      "privacyPolicyUrl": "https://nova8.dev/privacy/157",
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "dev.apexailabs.breath",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#252c52"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/[REPLACE_AFTER_FIRST_BUILD]",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24,
+            "enableMinifyInReleaseBuilds": true
+          },
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ],
+      "expo-apple-authentication"
+    ],
+    "extra": {
+      "privacyPolicyUrl": "https://nova8.dev/privacy/157",
+      "apiBaseUrl": "https://3000-ibc64x02b11abs8futfhf.e2b.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ]
+  }
+}

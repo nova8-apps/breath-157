@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1" />
+  <title>Nova8 App</title>
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#000; }
+    #root { margin:0; padding:0; height:100%; background:#000; display:flex; flex-direction:column; overflow:hidden; }
+    #root > div { display:flex; flex-direction:column; flex:1; min-height:0; }
+    #__nova8_loader {
+      position:fixed; inset:0; z-index:99998; display:flex; align-items:center; justify-content:center;
+      background:#000; font-family:-apple-system,system-ui,sans-serif;
+    }
+    #__nova8_loader .spinner { width:24px; height:24px; border:2px solid #333; border-top-color:#8b5cf6; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #__nova8_error_overlay {
+      display:none; position:fixed; inset:0; z-index:99999; background:#1a1a2e; color:#eee;
+      padding:24px; font-family:monospace; overflow:auto;
+    }
+    #__nova8_error_overlay h2 { color:#e94560; margin:0 0 12px; font-size:18px; }
+    #__nova8_error_overlay pre { white-space:pre-wrap; font-size:13px; line-height:1.5; color:#ccc; }
+  </style>
+  <script>
+    // Wave 111 — Safe-area inset shim for iframe preview.
+    //
+    // When this app is rendered inside the Nova8 phone-preview iframe, the
+    // browser reports env(safe-area-inset-*) as 0 because the iframe has no
+    // notch or home indicator. react-native-safe-area-context measures these
+    // by appending a hidden div to document.body and reading its computed
+    // padding (see NativeSafeAreaProvider.web.tsx). With env() = 0 the inset
+    // is 0, so expo-router Tabs collapses to ~49px and the user app's tab
+    // labels render flush against the bottom of the iframe — visually clipped
+    // by Nova8's home-indicator pill.
+    //
+    // On a real iPhone (TestFlight) iOS reports insets.bottom = 34, the tab
+    // bar grows to 83px, and labels sit safely above the home indicator.
+    //
+    // This shim makes the iframe behave the same way: only when running
+    // inside another window (the Nova8 preview), we patch getComputedStyle
+    // for the rnsac measurement element so it reports the same insets the
+    // app would see on a real iPhone 16 Pro.
+    (function () {
+      try {
+        if (window.parent === window) return; // not in iframe — leave alone
+        var FAKE = { top: '47px', right: '0px', bottom: '34px', left: '0px' };
+        var origGCS = window.getComputedStyle;
+        window.getComputedStyle = function (el, pseudo) {
+          var cs = origGCS.call(this, el, pseudo);
+          // rnsac's measurement div is uniquely identifiable: position:fixed,
+          // width/height 0, hidden, transitionProperty:padding. We sniff for
+          // that signature so we don't perturb any other element.
+          try {
+            if (
+              el && el.nodeType === 1 && el.tagName === 'DIV' &&
+              el.style && el.style.position === 'fixed' &&
+              el.style.width === '0px' && el.style.height === '0px' &&
+              el.style.transitionProperty === 'padding'
+            ) {
+              return new Proxy(cs, {
+                get: function (t, k) {
+                  if (k === 'paddingTop') return FAKE.top;
+                  if (k === 'paddingRight') return FAKE.right;
+                  if (k === 'paddingBottom') return FAKE.bottom;
+                  if (k === 'paddingLeft') return FAKE.left;
+                  var v = t[k];
+                  return typeof v === 'function' ? v.bind(t) : v;
+                }
+              });
+            }
+          } catch (_e) {}
+          return cs;
+        };
+      } catch (_e) { /* shim must never throw */ }
+    })();
+
+    // Catch errors BEFORE React loads — this runs first
+    window.onerror = function(msg, src, line, col, err) {
+      // Wave 23.4.2 Layer 3 — stash the most recent error for the invariant
+      // probes below, so a check that fires later (e.g. blank-root-after-
+      // bundle-200) can show the original cause rather than a generic one.
+      try { window.__nova8_lastError = { msg: String(msg || ''), stack: err && err.stack ? String(err.stack) : '', at: Date.now() }; } catch (_e) {}
+      var el = document.getElementById('__nova8_error_overlay');
+      if (el) {
+        var loader = document.getElementById('__nova8_loader');
+        if (loader) loader.style.display = 'none';
+        el.style.display = 'block';
+        el.innerHTML = '<h2>Runtime Error</h2><pre>' + (err && err.stack ? err.stack : msg) + '</pre>';
+      }
+      // Wave 23.4 — forward to parent so the Nova8 “Fix it” toast surfaces.
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'nova8:error',
+            message: String(msg || 'Unknown error'),
+            stack: err && err.stack ? String(err.stack) : '',
+            source: 'preview',
+            timestamp: Date.now()
+          }, '*');
+        }
+      } catch (_e) {}
+    };
+    window.onunhandledrejection = function(e) {
+      console.error('[Unhandled Promise]', e.reason);
+      try {
+        if (window.parent && window.parent !== window) {
+          var r = e && e.reason;
+          window.parent.postMessage({
+            type: 'nova8:error',
+            message: r && r.message ? String(r.message) : String(r || 'Unhandled rejection'),
+            stack: r && r.stack ? String(r.stack) : '',
+            source: 'preview',
+            timestamp: Date.now()
+          }, '*');
+        }
+      } catch (_e) {}
+    };
+    // Hide loader once React renders (check periodically)
+    var _checkInterval = setInterval(function() {
+      var root = document.getElementById('root');
+      if (root && root.children.length > 0) {
+        var loader = document.getElementById('__nova8_loader');
+        if (loader) loader.style.display = 'none';
+        clearInterval(_checkInterval);
+      }
+    }, 500);
+
+    // Wave 23.4 — Bundle-error probe.
+    //
+    // If Metro fails to compile the bundle, the bundle endpoint returns 500 with
+    // JSON like { type: "TransformError", message: "…", stack: "…" }. Without
+    // this probe, the iframe sits on a spinner forever because no React code
+    // ever runs, so the existing PreviewErrorReporter never mounts. We probe
+    // the bundle URL ourselves and forward bundle errors to the parent so the
+    // “Fix it” toast appears — the same recovery path users already know.
+    (function setupBundleProbe() {
+      var probed = false;
+      function probe() {
+        if (probed) return;
+        // If React has already mounted, the bundle compiled fine — skip.
+        var root = document.getElementById('root');
+        if (root && root.children.length > 0) { probed = true; return; }
+        try {
+          // Metro bundle URL pattern. We don’t know the exact entry filename
+          // (index.ts / index.tsx / App.tsx) so try the canonical Expo Router
+          // entry first, then fall back to index.tsx.
+          var candidates = [
+            '/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable',
+            '/index.tsx.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable',
+            '/App.tsx.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=src%2Fapp&unstable_transformProfile=hermes-stable'
+          ];
+          var idx = 0;
+          function tryNext() {
+            if (idx >= candidates.length) return;
+            var url = candidates[idx++];
+            fetch(url, { method: 'GET', headers: { 'Accept': 'application/json, text/javascript, */*' } })
+              .then(function(resp) {
+                if (resp.status === 500) {
+                  return resp.text().then(function(text) {
+                    probed = true;
+                    var msg = 'Bundle compilation failed';
+                    var stack = '';
+                    try {
+                      var j = JSON.parse(text);
+                      msg = j.message || (j.errors && j.errors[0] && j.errors[0].description) || msg;
+                      stack = j.stack || '';
+                    } catch (_) { stack = (text || '').slice(0, 4000); }
+                    // Show inline overlay
+                    var el = document.getElementById('__nova8_error_overlay');
+                    if (el) {
+                      var loader = document.getElementById('__nova8_loader');
+                      if (loader) loader.style.display = 'none';
+                      el.style.display = 'block';
+                      el.innerHTML = '<h2>Build error</h2><pre>' +
+                        String(msg).replace(/</g, '&lt;') + (stack ? String.fromCharCode(10, 10) + String(stack).replace(/</g, '&lt;') : '') +
+                        '</pre>';
+                    }
+                    // Forward to parent so the Fix it toast surfaces
+                    try {
+                      if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                          type: 'nova8:error',
+                          message: 'Build error: ' + String(msg).slice(0, 400),
+                          stack: String(stack).slice(0, 4000),
+                          source: 'metro-bundler',
+                          timestamp: Date.now()
+                        }, '*');
+                      }
+                    } catch (_e) {}
+                  });
+                } else if (resp.status === 404) {
+                  // Wrong entry name — try the next candidate.
+                  tryNext();
+                }
+                // 200/other: bundle compiled (or still building). Done probing.
+              })
+              .catch(function() { /* network blip — retry on next interval */ });
+          }
+          tryNext();
+        } catch (_e) {}
+      }
+      // Probe at 8s, 16s, 24s. By 24s any healthy bundle has compiled.
+      setTimeout(probe, 8000);
+      setTimeout(probe, 16000);
+      setTimeout(probe, 24000);
+    })();
+
+    // Wave 23.4.2 Layer 3 — in-iframe invariant probes.
+    //
+    // Two failure modes Layer 1 (boot-time shell self-test) and Layer 2
+    // (bundle 500 detection) cannot catch:
+    //
+    //   A. Loader stuck AFTER React mount. The loader-hide interval at the top
+    //      of this script clears itself once #root has children, but if some
+    //      future regression breaks that interval (e.g. a literal newline in
+    //      a JS string — the exact Wave 23.4.1 bug shape) the loader stays up
+    //      forever even though the app rendered behind it. We re-check at
+    //      8s/16s/24s and force-hide if both invariants fire.
+    //
+    //   B. Blank #root with bundle 200. The bundle compiled, no Metro 500, but
+    //      a runtime error during module top-level execution prevented React
+    //      from rendering anything. window.onerror catches the throw above
+    //      and stashes window.__nova8_lastError; we use that here to surface
+    //      the original message instead of a generic "app failed to render".
+    (function setupInvariantProbe() {
+      function check() {
+        try {
+          var loader = document.getElementById('__nova8_loader');
+          var root = document.getElementById('root');
+          var rootHasChildren = !!(root && root.children && root.children.length > 0);
+          var loaderVisible = !!(loader && loader.style.display !== 'none' && loader.offsetParent !== null);
+
+          // Invariant A — loader stuck after mount: force-hide and warn parent.
+          if (loaderVisible && rootHasChildren) {
+            loader.style.display = 'none';
+            try {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                  type: 'nova8:error',
+                  message: 'Loader stuck after React mount — preview shell regression detected.',
+                  source: 'invariant-probe',
+                  timestamp: Date.now()
+                }, '*');
+              }
+            } catch (_e) {}
+          }
+
+          // Invariant B — blank root with no bundle 500: surface stashed runtime error.
+          if (!rootHasChildren && !loaderVisible) {
+            // Loader was hidden by something but root never received children — means React mount failed.
+            var last = window.__nova8_lastError;
+            try {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                  type: 'nova8:error',
+                  message: last && last.msg ? String(last.msg).slice(0, 400) : 'App rendered nothing — React root is empty.',
+                  stack: last && last.stack ? String(last.stack).slice(0, 4000) : '',
+                  source: 'invariant-probe',
+                  timestamp: Date.now()
+                }, '*');
+              }
+            } catch (_e) {}
+          }
+        } catch (_e) { /* never let probe throw */ }
+      }
+      setTimeout(check, 8500);
+      setTimeout(check, 16500);
+      setTimeout(check, 24500);
+    })();
+
+    // Fallback: after 30s show a helpful message instead of silently hiding
+    setTimeout(function() {
+      var loader = document.getElementById('__nova8_loader');
+      if (loader) {
+        loader.innerHTML = '<div style="text-align:center;color:#999;font-family:-apple-system,sans-serif;font-size:13px;line-height:1.5"><p>Taking longer than expected...</p><p style="font-size:11px;color:#666">The app bundle may still be compiling.<br>Try reloading in a few seconds.</p></div>';
+      }
+      clearInterval(_checkInterval);
+    }, 30000);
+  </script>
+</head>
+<body>
+  <div id="__nova8_loader"><div class="spinner"></div></div>
+  <div id="__nova8_error_overlay"></div>
+  <div id="root"></div>
+</body>
+</html>
