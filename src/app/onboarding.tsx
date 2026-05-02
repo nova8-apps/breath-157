@@ -227,8 +227,6 @@ export default function OnboardingScreen() {
       style={{
         flex: 1,
         backgroundColor: colors.bg,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
       }}
     >
       {/* Skip */}
@@ -237,7 +235,7 @@ export default function OnboardingScreen() {
           flexDirection: 'row',
           justifyContent: 'flex-end',
           paddingHorizontal: 20,
-          paddingTop: 12,
+          paddingTop: insets.top + 12,
         }}
       >
         <Pressable
@@ -304,7 +302,7 @@ export default function OnboardingScreen() {
       </View>
 
       {/* CTA */}
-      <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+      <View style={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 16) + 8 }}>
         <Pressable
           onPress={handleNext}
           style={({ pressed }) => ({

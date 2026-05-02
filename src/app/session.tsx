@@ -17,8 +17,6 @@ import Animated, {
   withRepeat,
   Easing,
   cancelAnimation,
-  runOnJS,
-  interpolateColor,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '@/lib/store';
@@ -74,6 +72,8 @@ export default function SessionScreen() {
   const phaseProgress = useSharedValue(0); // 0 → 1 within each phase
   const phaseLabelOpacity = useSharedValue(1);
   const bgColorProgress = useSharedValue(0); // drives background color pulse
+  // Numeric mirror of phaseRef for worklet-safe access: 0=inhale, 1=hold, 2=exhale, 3=pause
+  const phaseIndex = useSharedValue(0);
 
   const animatedCircle = useAnimatedStyle(() => ({
     transform: [{ scale: circleScale.value }],
@@ -86,12 +86,15 @@ export default function SessionScreen() {
   }));
 
   const animatedBackground = useAnimatedStyle(() => {
-    const phase = phaseRef.current;
-    const phaseColor = getPhaseColor(phase);
-    // Parse phaseColor hex to RGB
-    const r = parseInt(phaseColor.slice(1, 3), 16);
-    const g = parseInt(phaseColor.slice(3, 5), 16);
-    const b = parseInt(phaseColor.slice(5, 7), 16);
+    // Phase hex colors: inhale=#20b2aa, hold=#6366f1, exhale=#8b5cf6, pause=#64748b
+    // Pre-parsed RGB values per phase index (0=inhale, 1=hold, 2=exhale, 3=pause)
+    const rMap = [32, 99, 139, 100];
+    const gMap = [178, 102, 92, 116];
+    const bMap = [170, 241, 246, 139];
+    const idx = phaseIndex.value;
+    const r = rMap[idx];
+    const g = gMap[idx];
+    const b = bMap[idx];
     const alpha = bgColorProgress.value * 0.04; // max 4% opacity
     return {
       backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})`,
@@ -116,7 +119,10 @@ export default function SessionScreen() {
   }, [profile.hapticsEnabled]);
 
   const animatePhase = useCallback((phase: BreathPhase, durationSec: number) => {
-    'worklet';
+    // Keep phaseIndex shared value in sync for the animatedBackground worklet
+    const phaseIndexMap: Record<BreathPhase, number> = { inhale: 0, hold: 1, exhale: 2, pause: 3 };
+    phaseIndex.value = phaseIndexMap[phase];
+
     const ms = durationSec * 1000;
     const ease = Easing.inOut(Easing.ease);
 
@@ -165,7 +171,7 @@ export default function SessionScreen() {
         circleOpacity.value = withTiming(0.3, { duration: 300 });
         break;
     }
-  }, [circleScale, circleOpacity, phaseProgress, phaseLabelOpacity, bgColorProgress]);
+  }, [circleScale, circleOpacity, phaseProgress, phaseLabelOpacity, bgColorProgress, phaseIndex]);
 
   const getNextPhase = useCallback((currentP: BreathPhase, pat: BreathPattern): { phase: BreathPhase; duration: number; newCycle: boolean } => {
     switch (currentP) {
@@ -187,6 +193,7 @@ export default function SessionScreen() {
     if (!pattern) return;
 
     phaseRef.current = 'inhale';
+    phaseIndex.value = 0; // sync shared value: 0 = inhale
     phaseTimeRef.current = pattern.inhale;
     cycleRef.current = 1;
 

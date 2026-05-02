@@ -70,6 +70,14 @@ export default function RootLayout() {
                   name="help"
                   options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
                 />
+                <Stack.Screen
+                  name="privacy"
+                  options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+                />
+                <Stack.Screen
+                  name="terms"
+                  options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+                />
               </Stack>
               <PreviewModeBanner />
               <StatusBar style="light" />

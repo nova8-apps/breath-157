@@ -17,6 +17,8 @@ import {
   Vibrate,
   Bell,
   HelpCircle,
+  Shield,
+  FileText,
   ChevronRight,
   LogOut,
 } from 'lucide-react-native';
@@ -311,6 +313,16 @@ export default function ProfileScreen() {
             marginBottom: 20,
           }}
         >
+          <SettingRow
+            icon={Shield}
+            label="Privacy Policy"
+            onPress={() => router.push('/privacy')}
+          />
+          <SettingRow
+            icon={FileText}
+            label="Terms of Service"
+            onPress={() => router.push('/terms')}
+          />
           <SettingRow
             icon={HelpCircle}
             label="Help & FAQ"
