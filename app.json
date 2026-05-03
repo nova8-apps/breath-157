@@ -62,7 +62,7 @@
     ],
     "extra": {
       "privacyPolicyUrl": "https://nova8.dev/privacy/157",
-      "apiBaseUrl": "https://3000-i2pos6i4rkq4xu0kdso35.e2b.app"
+      "apiBaseUrl": "https://3000-ic9gaoltg3bwvd94g85wq.e2b.app"
     },
     "web": {
       "bundler": "metro",
