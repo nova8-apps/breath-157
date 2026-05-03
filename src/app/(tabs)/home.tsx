@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,17 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Flame, Play, ChevronRight, Plus, Square, Moon, Sun, Zap, CloudMoon } from 'lucide-react-native';
+import { Flame, Play, ChevronRight, Square, Moon, Sun, Zap, CloudMoon, Sparkles } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withRepeat,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '@/lib/store';
-import { BreathingCircle } from '@/components/BreathingCircle';
 import { colors } from '@/lib/theme';
 import type { BreathPattern } from '@/types';
 
@@ -28,7 +30,93 @@ const PATTERN_ICONS: Record<string, React.ComponentType<{ size: number; color: s
   'cloud-moon': CloudMoon,
 };
 
-function PatternCard({ pattern, onPress }: { pattern: BreathPattern; onPress: () => void }) {
+// Floating particle component
+function FloatingParticle({ delay, x, y }: { delay: number; x: number; y: number }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withTiming(0.4, { duration: 800, easing: Easing.ease });
+    translateY.value = withRepeat(
+      withTiming(-20, { duration: 3000 + delay * 100, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, [delay]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          left: x,
+          top: y,
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: colors.primary,
+        },
+        animStyle,
+      ]}
+    />
+  );
+}
+
+// Background breathing circle (large ambient)
+function BackgroundBreathingCircle() {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    scale.value = withRepeat(
+      withTiming(1.08, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          top: -80,
+          alignSelf: 'center',
+          width: 320,
+          height: 320,
+          borderRadius: 160,
+          backgroundColor: colors.primaryGlow,
+          opacity: 0.15,
+        },
+        animStyle,
+      ]}
+    >
+      <View
+        style={{
+          position: 'absolute',
+          top: 40,
+          left: 40,
+          width: 240,
+          height: 240,
+          borderRadius: 120,
+          backgroundColor: colors.primary,
+          opacity: 0.12,
+        }}
+      />
+    </Animated.View>
+  );
+}
+
+// Compact pattern card for 2x2 grid
+function CompactPatternCard({ pattern, onPress }: { pattern: BreathPattern; onPress: () => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -40,45 +128,45 @@ function PatternCard({ pattern, onPress }: { pattern: BreathPattern; onPress: ()
 
   return (
     <Pressable
-      onPressIn={() => { scale.value = withSpring(0.95, { damping: 14, stiffness: 200 }); }}
+      onPressIn={() => { scale.value = withSpring(0.92, { damping: 14, stiffness: 200 }); }}
       onPressOut={() => { scale.value = withSpring(1, { damping: 14, stiffness: 200 }); }}
       onPress={onPress}
       accessibilityLabel={`Select ${pattern.name} pattern`}
       testID={`pattern-${pattern.id}`}
+      style={{ flex: 1 }}
     >
       <Animated.View
         style={[
           animStyle,
           {
-            width: 140,
             backgroundColor: colors.bgCard,
-            borderRadius: 16,
-            padding: 16,
-            marginRight: 12,
+            borderRadius: 14,
+            padding: 14,
             borderWidth: 1,
             borderColor: colors.border,
+            minHeight: 90,
           },
         ]}
       >
         <View
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
+            width: 36,
+            height: 36,
+            borderRadius: 10,
             backgroundColor: pattern.isPremium ? 'rgba(139,92,246,0.15)' : colors.primaryGlow,
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 12,
+            marginBottom: 8,
           }}
         >
-          <IconComponent size={20} color={pattern.isPremium ? '#8b5cf6' : colors.primary} />
+          <IconComponent size={18} color={pattern.isPremium ? '#8b5cf6' : colors.primary} />
         </View>
         <Text
           style={{
             fontFamily: 'Inter_600SemiBold',
-            fontSize: 14,
+            fontSize: 13,
             color: colors.textPrimary,
-            marginBottom: 4,
+            marginBottom: 2,
           }}
           numberOfLines={1}
         >
@@ -87,25 +175,25 @@ function PatternCard({ pattern, onPress }: { pattern: BreathPattern; onPress: ()
         <Text
           style={{
             fontFamily: 'Inter_400Regular',
-            fontSize: 12,
+            fontSize: 11,
             color: colors.textSecondary,
           }}
         >
-          {totalMin} min · {pattern.cycles} cycles
+          {totalMin} min
         </Text>
         {pattern.isPremium && (
           <View
             style={{
               position: 'absolute',
-              top: 8,
-              right: 8,
+              top: 6,
+              right: 6,
               backgroundColor: 'rgba(139,92,246,0.2)',
               borderRadius: 6,
-              paddingHorizontal: 6,
+              paddingHorizontal: 5,
               paddingVertical: 2,
             }}
           >
-            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 9, color: '#8b5cf6' }}>PRO</Text>
+            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 8, color: '#8b5cf6' }}>PRO</Text>
           </View>
         )}
       </Animated.View>
@@ -113,31 +201,39 @@ function PatternCard({ pattern, onPress }: { pattern: BreathPattern; onPress: ()
   );
 }
 
-function SessionRow({ patternName, duration, time, isLast }: { patternName: string; duration: number; time: string; isLast?: boolean }) {
-  const mins = Math.floor(duration / 60);
-  const secs = duration % 60;
+// Radial streak progress ring
+function StreakRing({ current, longest }: { current: number; longest: number }) {
+  const progress = longest > 0 ? Math.min(current / longest, 1) : 0;
+  const circumference = 2 * Math.PI * 18; // radius 18
+  const strokeDashoffset = circumference * (1 - progress);
+
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 14,
-        borderBottomWidth: isLast ? 0 : 1,
-        borderBottomColor: colors.border,
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: colors.textPrimary }}>
-          {patternName}
-        </Text>
-        <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
-          {time}
-        </Text>
-      </View>
-      <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: colors.textSecondary }}>
-        {mins}:{secs.toString().padStart(2, '0')}
-      </Text>
+    <View style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="48" height="48" style={{ position: 'absolute' }}>
+        {/* Background circle */}
+        <circle
+          cx="24"
+          cy="24"
+          r="18"
+          stroke="rgba(251,191,36,0.15)"
+          strokeWidth="4"
+          fill="none"
+        />
+        {/* Progress circle */}
+        <circle
+          cx="24"
+          cy="24"
+          r="18"
+          stroke="#fbbf24"
+          strokeWidth="4"
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          transform="rotate(-90 24 24)"
+        />
+      </svg>
+      <Flame size={20} color="#fbbf24" />
     </View>
   );
 }
@@ -149,7 +245,7 @@ export default function HomeScreen() {
   const profile = useAppStore((s) => s.profile);
   const setActivePattern = useAppStore((s) => s.setActivePattern);
 
-  const recentSessions = useMemo(() => sessions.slice(0, 3), [sessions]);
+  const topPatterns = useMemo(() => patterns.slice(0, 4), [patterns]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -176,34 +272,60 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      {/* Background ambient circle */}
+      <BackgroundBreathingCircle />
+
+      {/* Floating particles */}
+      <FloatingParticle delay={0} x={50} y={120} />
+      <FloatingParticle delay={5} x={280} y={180} />
+      <FloatingParticle delay={10} x={180} y={150} />
+      <FloatingParticle delay={7} x={320} y={200} />
+
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + 16,
+          paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 100,
           paddingHorizontal: 24,
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting */}
-        <View style={{ marginBottom: 8 }}>
+        {/* Hero Card — greeting + streak + CTA combined */}
+        <View
+          style={{
+            backgroundColor: colors.bgCard,
+            borderRadius: 20,
+            padding: 20,
+            marginBottom: 20,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          {/* Greeting */}
           <Text
             style={{
               fontFamily: 'Inter_400Regular',
-              fontSize: 15,
+              fontSize: 14,
               color: colors.textSecondary,
+              marginBottom: 4,
             }}
           >
             {greeting}, {profile.name}
           </Text>
-        </View>
 
-        {/* Hero Breathing Circle */}
-        <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-          <BreathingCircle size={220} isActive={false} />
-        </View>
+          {/* Streak inline with icon */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <StreakRing current={profile.currentStreak} longest={profile.longestStreak} />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 26, color: '#fbbf24', letterSpacing: -0.8 }}>
+                {profile.currentStreak} day{profile.currentStreak !== 1 ? 's' : ''}
+              </Text>
+              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.textSecondary }}>
+                Current streak · Best: {profile.longestStreak}
+              </Text>
+            </View>
+          </View>
 
-        {/* Start Session Button */}
-        <View style={{ marginBottom: 32 }}>
+          {/* Start Session Button */}
           <Pressable
             onPress={handleQuickStart}
             accessibilityLabel="Start breathing session"
@@ -213,109 +335,57 @@ export default function HomeScreen() {
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: colors.primary,
-              borderRadius: 16,
-              paddingVertical: 18,
+              borderRadius: 14,
+              paddingVertical: 16,
               gap: 10,
-            }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Play size={20} color="#fff" fill="#fff" />
-            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 17, color: '#fff' }}>
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Play size={18} color="#fff" fill="#fff" />
+            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#fff' }}>
               Start Session
             </Text>
           </Pressable>
         </View>
 
-        {/* Streak Badge */}
-        <View style={{ marginBottom: 28 }}>
+        {/* Daily Focus Banner */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(99,102,241,0.08)',
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: 'rgba(99,102,241,0.15)',
+          }}
+        >
           <View
             style={{
-              flexDirection: 'row',
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: 'rgba(99,102,241,0.15)',
               alignItems: 'center',
-              backgroundColor: 'rgba(251,191,36,0.08)',
-              borderRadius: 16,
-              padding: 16,
-              borderWidth: 1,
-              borderColor: 'rgba(251,191,36,0.15)',
+              justifyContent: 'center',
+              marginRight: 12,
             }}
           >
-            <View
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                backgroundColor: 'rgba(251,191,36,0.15)',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 14,
-              }}
-            >
-              <Flame size={24} color="#fbbf24" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 22, color: '#fbbf24', letterSpacing: -0.5 }}>
-                {profile.currentStreak} days
-              </Text>
-              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: colors.textSecondary }}>
-                Current streak · Best: {profile.longestStreak}
-              </Text>
-            </View>
+            <Sparkles size={20} color="#6366f1" />
           </View>
-        </View>
-
-        {/* Patterns Carousel */}
-        <View style={{ marginBottom: 28 }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 14,
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: 'Inter_600SemiBold',
-                fontSize: 18,
-                color: colors.textPrimary,
-              }}
-            >
-              Breathing Patterns
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#6366f1', marginBottom: 2 }}>
+              Today's Focus
             </Text>
-            <Pressable
-              onPress={() => router.push('/pattern-editor')}
-              accessibilityLabel="Create custom pattern"
-              testID="create-pattern-btn"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              <Plus size={16} color={colors.primary} />
-              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.primary }}>
-                Custom
-              </Text>
-            </Pressable>
-          </View>
-          <View style={{ height: 170, marginHorizontal: -24 }}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 24 }}
-            >
-              {patterns.map((p) => (
-                <PatternCard
-                  key={p.id}
-                  pattern={p}
-                  onPress={() => handleSelectPattern(p.id)}
-                />
-              ))}
-            </ScrollView>
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: colors.textSecondary }}>
+              Find calm in the breath
+            </Text>
           </View>
         </View>
 
-        {/* Recent Sessions */}
-        <View>
+        {/* Patterns Grid (2x2 + See All) */}
+        <View style={{ marginBottom: 24 }}>
           <View
             style={{
               flexDirection: 'row',
@@ -331,59 +401,136 @@ export default function HomeScreen() {
                 color: colors.textPrimary,
               }}
             >
-              Recent Sessions
+              Breathing Patterns
             </Text>
-            <Pressable
-              onPress={() => router.push('/(tabs)/explore')}
-              accessibilityLabel="View all sessions"
-              testID="view-all-sessions"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
-            >
-              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.primary }}>
-                View All
-              </Text>
-              <ChevronRight size={14} color={colors.primary} />
-            </Pressable>
           </View>
 
-          <View
+          {/* 2x2 Grid */}
+          <View style={{ gap: 10, marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {topPatterns.slice(0, 2).map((p) => (
+                <CompactPatternCard
+                  key={p.id}
+                  pattern={p}
+                  onPress={() => handleSelectPattern(p.id)}
+                />
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {topPatterns.slice(2, 4).map((p) => (
+                <CompactPatternCard
+                  key={p.id}
+                  pattern={p}
+                  onPress={() => handleSelectPattern(p.id)}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* See All Row */}
+          <Pressable
+            onPress={() => router.push('/pattern-editor')}
+            accessibilityLabel="View all patterns"
+            testID="view-all-patterns"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
               backgroundColor: colors.bgCard,
-              borderRadius: 16,
+              borderRadius: 12,
+              paddingVertical: 14,
               borderWidth: 1,
               borderColor: colors.border,
-              paddingHorizontal: 16,
+              gap: 6,
             }}
           >
-            {recentSessions.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-                <Text
-                  style={{
-                    fontFamily: 'Inter_400Regular',
-                    fontSize: 15,
-                    color: colors.textSecondary,
-                    textAlign: 'center',
-                  }}
-                >
-                  Begin your first breathing session
-                </Text>
-              </View>
-            ) : (
-              recentSessions.map((s, index) => {
-                const d = new Date(s.date);
-                const timeStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                return (
-                  <SessionRow
-                    key={s.id}
-                    patternName={s.patternName}
-                    duration={s.duration}
-                    time={timeStr}
-                    isLast={index === recentSessions.length - 1}
-                  />
-                );
-              })
-            )}
+            <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: colors.primary }}>
+              View All Patterns
+            </Text>
+            <ChevronRight size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+
+        {/* Recent Activity Summary */}
+        <View>
+          <Text
+            style={{
+              fontFamily: 'Inter_600SemiBold',
+              fontSize: 18,
+              color: colors.textPrimary,
+              marginBottom: 12,
+            }}
+          >
+            Your Journey
+          </Text>
+
+          <View style={{ gap: 10 }}>
+            {/* Total Sessions */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.bgCard,
+                borderRadius: 14,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: colors.textPrimary }}>
+                Total Sessions
+              </Text>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.primary, letterSpacing: -0.5 }}>
+                {profile.totalSessions}
+              </Text>
+            </View>
+
+            {/* Total Minutes */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: colors.bgCard,
+                borderRadius: 14,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: colors.textPrimary }}>
+                Total Minutes
+              </Text>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: colors.primary, letterSpacing: -0.5 }}>
+                {profile.totalMinutes}
+              </Text>
+            </View>
+
+            {/* View History CTA */}
+            <Pressable
+              onPress={() => router.push('/(tabs)/explore')}
+              accessibilityLabel="View session history"
+              testID="view-history"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: colors.bgCard,
+                borderRadius: 12,
+                paddingVertical: 14,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: colors.primary }}>
+                View Session History
+              </Text>
+              <ChevronRight size={16} color={colors.primary} />
+            </Pressable>
           </View>
         </View>
       </ScrollView>
