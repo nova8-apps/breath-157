@@ -9,27 +9,31 @@
       "distribution": "internal",
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
-      }
+      },
+      "channel": "production"
     },
     "preview": {
       "distribution": "internal",
       "ios": {
         "simulator": false,
         "image": "macos-sequoia-15.6-xcode-26.0"
-      }
+      },
+      "channel": "production"
     },
     "production": {
       "autoIncrement": true,
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.0"
-      }
+      },
+      "channel": "production"
     },
     "simulator": {
       "distribution": "internal",
       "ios": {
         "simulator": true,
         "image": "macos-sequoia-15.6-xcode-26.0"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
